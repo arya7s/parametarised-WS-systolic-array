@@ -16,4 +16,4 @@ The design implements a weight-stationary dataflow, minimizing memory accesses b
 ## Simulation & Verification
 The design was extensively verified using Vivado's simulator. 
 
-![Simulation Waveform](https://drive.google.com/drive/folders/1ebrWCjbRnExcvEKFPIc34D6qtUdyAkTn?usp=sharing) 
+
