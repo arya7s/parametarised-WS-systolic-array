@@ -111,7 +111,7 @@ parametrised-WS-systolic-array/
 │   └── top.sv
 ├── testbench/                      UVM testbench environment
 │   └── tb_top.sv
-├── pyhthon_train_and_inference/    PyTorch training and inference scripts
+├── python_train_and_inference/     PyTorch training and inference scripts
 │   └── iris_training.py
 ├── weight_and_biases/              Quantized weight .mem files
 │   ├── weights_layer1.mem
@@ -183,7 +183,7 @@ pip install torch scikit-learn numpy
 ### Training and Weight Export
 
 ```bash
-cd pyhthon_train_and_inference/
+cd python_train_and_inference/
 python iris_training.py
 ```
 
