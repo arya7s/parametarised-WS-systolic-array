@@ -23,9 +23,6 @@ module ml_accel_top (
     logic signed [WEIGHT_W-1:0] sa_ld;
     logic signed [ACT_W-1:0] sa_ai [0:SA_ROWS-1];
     logic signed [PSUM_W-1:0] sa_po [0:SA_COLS-1];
-    
-    // <-- NEW: Internal wire to carry the bias
-    logic signed [PSUM_W-1:0] sa_bi [0:SA_COLS-1]; 
 
     axi_lite_slave u_axil (.*);
     axis_input_slave u_axis_in (.*);
@@ -44,16 +41,13 @@ module ml_accel_top (
         .sa_load_pulse(sa_lp), .sa_load_row(sa_lr), .sa_load_col(sa_lc), .sa_load_data(sa_ld),
         .sa_compute_en(sa_ce), .sa_act_in(sa_ai),
         .sa_psum_out(sa_po), .sa_output_valid(sa_ov),
-        .sa_bias_in(sa_bi),  // <-- NEW: Connected to controller
         .logits(logits), .infer_done(infer_done)
     );
 
     systolic_array u_sa (
-        .clk(aclk), .rst_n(aresetn),
+        .clk(aclk), .rst_n(aresetn), 
         .load_pulse(sa_lp), .load_row(sa_lr), .load_col(sa_lc), .load_data(sa_ld),
-        .compute_en(sa_ce), .act_in(sa_ai),
-        .bias_in(sa_bi),     // <-- NEW: Connected to array
-        .psum_out(sa_po), .output_valid(sa_ov)
+        .compute_en(sa_ce), .act_in(sa_ai), .psum_out(sa_po), .output_valid(sa_ov)
     );
 
 endmodule
