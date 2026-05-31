@@ -9,7 +9,6 @@ module systolic_array (
     input logic signed [WEIGHT_W-1:0] load_data,
     input logic compute_en,
     input logic signed [ACT_W-1:0] act_in [0:SA_ROWS-1],
-    input logic signed [PSUM_W-1:0] bias_in [0:SA_COLS-1], // <-- NEW PORT
     output logic signed [PSUM_W-1:0] psum_out [0:SA_COLS-1],
     output logic output_valid
 );
@@ -17,7 +16,7 @@ module systolic_array (
     logic signed [PSUM_W-1:0] psum_v [0:SA_ROWS][0:SA_COLS-1];
     logic signed [ACT_W-1:0]  stagger [0:SA_ROWS-1][0:SA_ROWS-1];
 
-    // Input Staggering (Skewing)
+    // Input Staggering (Skewing) - Correctly driven for all indices
     generate
         for (genvar r = 0; r < SA_ROWS; r++) begin : gen_stagger
             always_ff @(posedge clk) begin
@@ -51,20 +50,18 @@ module systolic_array (
         end
     endgenerate
 
-    // Output and Bias Routing
     for (genvar c = 0; c < SA_COLS; c++) begin
-        assign psum_v[0][c] = bias_in[c]; // <-- NEW: Feed bias instead of '0
+        assign psum_v[0][c] = '0;
         assign psum_out[c] = psum_v[SA_ROWS][c];
     end
 
-    // Pipeline Latency Tracker
+    // Latency Pipeline: SA_ROWS + SA_COLS
     localparam int LATENCY = SA_ROWS + SA_COLS;
     logic [LATENCY-1:0] v_pipe;
-
     always_ff @(posedge clk) begin
         if (!rst_n) v_pipe <= '0;
         else v_pipe <= {v_pipe[LATENCY-2:0], compute_en};
     end
-    assign output_valid = v_pipe[LATENCY-1];
 
+    assign output_valid = v_pipe[LATENCY-1];
 endmodule
