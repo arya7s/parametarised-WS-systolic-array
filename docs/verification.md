@@ -15,7 +15,9 @@ The current repository uses a SystemVerilog, cycle-accurate verification environ
 
 ## Current evidence
 
-The testbench includes directed and randomized input tests plus cycle/phase monitors. Additional corner cases such as back-pressure, reset during inference, repeated inference, and exhaustive boundary-value campaigns are identified as future verification extensions rather than claimed as completed coverage.
+The current testbench (`testbench/testbench.sv`) exercises a single directed test vector: it loads quantized weights and biases, streams the input activations, and compares the resulting hardware classification against a golden expected class computed with the same INT8 arithmetic used in hardware. Cycle-accurate phase counters record timing for weight loading, MAC/drain, and output stages (see [`results.md`](results.md) for the measured cycle breakdown).
+
+Randomized stimulus, a multi-vector regression suite, and corner-case scenarios (back-pressure, reset during inference, repeated inference, exhaustive boundary-value campaigns) are not yet implemented in this testbench. They are identified as future verification extensions rather than claimed as completed coverage.
 
 ## Verification philosophy
 

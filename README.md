@@ -25,11 +25,28 @@ This project explores the hardware architecture behind small matrix multiplicati
 
 ## Results and implementation evidence
 
-The repository preserves Vivado timing, utilization, power, schematic, implementation, and simulation evidence in [`screenshots_project/`](screenshots_project/).
+The repository preserves Vivado timing, utilization, power, schematic, implementation, and simulation evidence in [`screenshots_project/`](screenshots_project/). The table distinguishes **target/configuration** values from **measured/reported** values; nothing below is inferred or fabricated.
 
-The documentation distinguishes **targets/configuration** from **measured implementation values**. The archived reports are the authoritative source for numeric FPGA results; no values are inferred or fabricated in this README.
+| Metric | Result | Source |
+|---|---:|---|
+| FPGA | Zynq-7000 XC7Z020 | configuration |
+| Board | Avnet ZedBoard | configuration |
+| Array | 4×4 (16 PEs) | configuration |
+| MACs/cycle | 16 | configuration |
+| Operand precision | signed INT8 | configuration |
+| Accumulator | signed INT32 | configuration |
+| Clock target | 100 MHz (10.0 ns period) | configuration |
+| Setup slack (WNS) | +2.488 ns — PASS, 0/3,118 failing endpoints | Vivado timing report |
+| Hold slack (WHS) | +0.117 ns — PASS, 0/3,118 failing endpoints | Vivado timing report |
+| Reported achievable F_max | ~133 MHz (post-implementation STA; not board-measured) | Vivado timing report |
+| LUT utilization | 1,119 / 53,200 (2.10%) | Vivado utilization report |
+| FF utilization | 934 / 106,400 (0.88%) | Vivado utilization report |
+| DSP48E1 utilization | 16 / 220 (7.27%) | Vivado utilization report |
+| Block RAM utilization | 0 / 140 (0.00%, register-only design) | Vivado utilization report |
+| Estimated on-chip power | 131 mW (26 mW dynamic + 105 mW static), 26.5°C junction | Vivado power report |
+| Demonstration-workload inference latency | 211 cycles = 2.11 μs @ 100 MHz | cycle-accurate RTL simulation |
 
-See [`docs/results_v2.md`](docs/results_v2.md) and [`docs/results_table.md`](docs/results_table.md).
+All timing/power figures are Vivado static analysis and estimation, not on-board measurements. Full breakdowns (critical-path analysis, power by hierarchy, per-phase cycle accounting) are in [`docs/results.md`](docs/results.md).
 
 ## Architecture
 
@@ -123,7 +140,7 @@ The current clock target is 100 MHz. Exact end-to-end latency should be reported
 
 ## Verification
 
-The repository uses a cycle-accurate SystemVerilog verification environment with directed/randomized stimulus, protocol transactions, internal state monitoring, cycle accounting, and a hardware-side expected-result comparison.
+The repository uses a cycle-accurate SystemVerilog verification environment: a directed test vector exercised through AXI-Lite/AXI-Stream protocol transactions, internal state monitoring, phase-level cycle accounting, and a hardware-side comparison against a golden expected result.
 
 I am deliberately **not calling this a UVM environment** in the current documentation. A future expansion can introduce a conventional UVM agent/driver/monitor/sequencer/scoreboard architecture, but that is not presented as completed work here.
 
