@@ -6,8 +6,4 @@ The repository's Iris 4→16→3 MLP is used purely as a compact demonstration w
 
 ## Bias
 
-Bias is enabled in the demonstrated MLP and represented in the exported model parameters. Hardware verification includes bias loading/application; therefore the documentation treats the accelerator as bias-capable rather than describing it as a bias-free network.
-
-## Claims discipline
-
-Only completed implementation and verification behavior is described as current capability. Planned stress tests, protocol corner cases, larger workloads, and UVM expansion are explicitly labeled as future work.
+Bias is enabled in the demonstrated MLP and represented in the exported model parameters. Hardware verification includes bias loading and application, so the accelerator is bias-capable rather than a bias-free network.
