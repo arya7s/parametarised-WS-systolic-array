@@ -1,233 +1,208 @@
-# ML Accelerator — FPGA-Based Neural Network Inference Engine
+# Parameterized Weight-Stationary Systolic Array for FPGA-Based Neural Network Inference
 
-A parameterized weight-stationary systolic array GEMM engine for quantized neural network inference, implemented in SystemVerilog on a Xilinx Zynq-7000 SoC (ZedBoard).
+A parameterized SystemVerilog accelerator implementing a weight-stationary systolic-array GEMM datapath for quantized neural-network inference on a Xilinx Zynq-7000 FPGA.
 
----
+> **Demonstration workload:** the included Iris 4→16→3 MLP is used purely as a compact end-to-end test workload. It is not the architectural target of the accelerator.
 
-## Overview
+## Why this project
 
-The ML Accelerator is a parameterized FPGA-based inference engine built around a weight-stationary systolic array, designed to accelerate forward passes through small quantized MLPs. The current implementation targets Iris flower classification using a 4→16→3 MLP as a proof-of-concept, demonstrating end-to-end hardware ML inference with:
+This project explores the hardware architecture behind small matrix multiplications rather than a dataset-specific ML application. The implementation combines parameterized RTL, systolic dataflow, fixed-point arithmetic, AXI interfaces, cycle-level control, FPGA implementation, and hardware/software verification.
 
-- Parameterized RTL in SystemVerilog
-- 4×4 systolic array with 16 parallel int8 MACs
-- AXI4-Lite and AXI4-Stream interfaces
-- UVM functional verification targeting 85–95% coverage
+## At a glance
 
-This project is part of third-year ECE coursework aligned with VLSI Design objectives.
+| Dimension | Current implementation |
+|---|---|
+| Dataflow | Weight-stationary |
+| Array | 4×4 PEs |
+| Parallel MAC capacity | 16 MACs/cycle |
+| Operand precision | signed INT8 |
+| Accumulation | signed INT32 |
+| FPGA | AMD/Xilinx Zynq-7000 XC7Z020 |
+| Board | Avnet ZedBoard |
+| Clock target | 100 MHz |
+| Interfaces | AXI4-Lite + AXI4-Stream |
+| Demonstration model | 4→16→3 MLP, with bias and ReLU |
 
----
+## Results and implementation evidence
+
+The repository preserves Vivado timing, utilization, power, schematic, implementation, and simulation evidence in [`screenshots_project/`](screenshots_project/).
+
+The documentation distinguishes **targets/configuration** from **measured implementation values**. The archived reports are the authoritative source for numeric FPGA results; no values are inferred or fabricated in this README.
+
+See [`docs/results_v2.md`](docs/results_v2.md) and [`docs/results_table.md`](docs/results_table.md).
 
 ## Architecture
 
-```
-Host (ARM / Testbench)
-        |
-        |-- AXI4-Lite --> Weight/Config Registers
-        |
-        +-- AXI4-Stream --> [ Input Buffer ]
-                                    |
-                               [ 4x4 Systolic Array ]
-                               |  Weight-Stationary   |
-                               |  int8 x int8 -> int32 |
-                                    |
-                              [ ReLU (Hidden Layer) ]
-                                    |
-                               [ 4x4 Systolic Array ]
-                               |   Output Layer       |
-                                    |
-                          AXI4-Stream --> [ 3 int32 Logits ]
+```mermaid
+flowchart LR
+    H[Host / Testbench]
+    AXIL[AXI4-Lite<br/>Control + Weight Load]
+    AXISIN[AXI4-Stream<br/>Input Activations]
+    A[Input Buffer / Control]
+    SA1[Weight-Stationary<br/>Systolic Array N×N]
+    ACT[Bias + ReLU /<br/>Hidden-Layer Processing]
+    SA2[Weight-Stationary<br/>Systolic Array N×N]
+    OUT[Output Logits]
+    AXISOUT[AXI4-Stream<br/>Output]
+
+    H --> AXIL --> A
+    H --> AXISIN --> A
+    A --> SA1 --> ACT --> SA2 --> OUT --> AXISOUT --> H
 ```
 
-### Current MLP Configuration (Iris)
+At the PE level, each processing element stores one weight locally. Activations propagate horizontally while partial sums propagate vertically. Input staggering aligns operands as they enter the array.
 
-| Layer  | Size | Activation | Precision                     |
-|--------|------|------------|-------------------------------|
-| Input  | 4    | —          | int8                          |
-| Hidden | 16   | ReLU       | int8 (weights), int32 (accum) |
-| Output | 3    | —          | int32 logits                  |
+### Core computation
 
-- **Dataset**: Iris (150 samples, 3 classes: Setosa / Versicolor / Virginica)
-- **Quantization**: Post-training, weights clamped and rounded to int8; features scaled ×20 after StandardScaler
-- **Bias**: Not used (`bias=False` throughout)
-
----
-
-## RTL Module Hierarchy
-
-```
-top.sv
-├── axi_lite_slave.sv       AXI4-Lite weight/config loading
-├── axi_stream_slave.sv     AXI-Stream input activations
-├── axi_stream_master.sv    AXI-Stream output logits
-├── controller.sv           FSM: IDLE -> LOAD_L1 -> COMP_L1 -> RELU -> LOAD_L2 -> COMP_L2 -> DONE
-│   └── systolic_array.sv   4×4 generate loop with input stagger flip-flops
-│       └── pe.sv           Single PE: int8 MAC, weight register, partial sum pipeline
-└── relu.sv                 Parameterized combinational ReLU (standalone module)
-
-params_pkg.sv               Shared parameters and type definitions
+```text
+psum_out = psum_in + weight_reg × activation_in
 ```
 
-### Key Design Parameters
+The array is generated from the configurable row/column parameters rather than manually instantiated as four-by-four hardware.
 
-| Parameter          | Value               |
-|--------------------|---------------------|
-| Systolic array     | 4×4                 |
-| MACs per cycle     | 16                  |
-| Clock target       | 100 MHz             |
-| Dataflow           | Weight-Stationary   |
-| Weight storage     | Registers (no BRAM) |
-| Accumulator width  | 32-bit signed       |
-| End-to-end latency | ~200 clock cycles   |
+## Parameterization and scaling
 
----
+The shared parameter package exposes the principal architectural knobs:
 
-## FPGA Target
+| Parameter | Meaning | Current value |
+|---|---|---:|
+| `SA_ROWS` | PE rows | 4 |
+| `SA_COLS` | PE columns | 4 |
+| `ACT_W` | activation width | 8 |
+| `WEIGHT_W` | weight width | 8 |
+| `PSUM_W` | accumulator width | 32 |
 
-| Resource    | Specification                  |
-|-------------|--------------------------------|
-| Board       | Avnet ZedBoard                 |
-| SoC         | Xilinx XC7Z020 (Zynq-7000)     |
-| LUTs        | 53,200 available               |
-| DSP Slices  | 220 available (16 used)        |
-| BRAM        | 0 blocks used (140 available)  |
-| ARM Core    | Dual Cortex-A9 (PS side)       |
-| EDA Tool    | Xilinx Vivado 2023.x / 2024.x  |
+Changing `SA_ROWS`/`SA_COLS` changes the generated PE grid and the systolic timing relationship. The design uses generate loops, so array replication scales with the selected dimensions.
 
----
+Changing `ACT_W` or `WEIGHT_W` changes operand width throughout the datapath. `PSUM_W` independently controls the accumulation width, allowing wider accumulation than the input operands.
 
-## Repository Structure
+Importantly, **network dimensions and physical array dimensions are separate concepts**. The demonstration MLP is 4→16→3, while the physical array is 4×4. A larger GEMM is handled through tiling/multiple array traversals rather than implying that the neural-network dimensions are fixed to four.
 
-```
-parametrised-WS-systolic-array/
-├── rtl/                            SystemVerilog RTL source files
-│   ├── params_pkg.sv
-│   ├── pe.sv
-│   ├── systolic_array.sv
-│   ├── relu.sv
-│   ├── controller.sv
-│   ├── axi_lite_slave.sv
-│   ├── axi_stream_slave.sv
-│   ├── axi_stream_master.sv
-│   └── top.sv
-├── testbench/                      UVM testbench environment
-│   └── tb_top.sv
-├── python_train_and_inference/     PyTorch training and inference scripts
-│   └── iris_training.py
-├── weight_and_biases/              Quantized weight .mem files
-│   ├── weights_layer1.mem
-│   ├── weights_layer2.mem
-│   └── ...
-├── screenshots_project/            Architecture diagrams and simulation waveforms
-└── README.md
+A natural next experiment is a parameter sweep over array dimensions and precision to quantify throughput, area, timing, and power tradeoffs.
+
+## Demonstration workload: Iris MLP
+
+The Iris dataset is intentionally used only as a **small proof-of-concept workload** because it makes the complete pipeline easy to inspect:
+
+```text
+Python model
+   ↓
+quantization / parameter export
+   ↓
+.memory initialization files
+   ↓
+SystemVerilog accelerator
+   ↓
+cycle-accurate verification
+   ↓
+FPGA synthesis / implementation
 ```
 
----
+The network is a 4→16→3 MLP with ReLU in the hidden layer and **bias enabled**. The classifier demonstrates the accelerator; it does not define the accelerator architecture.
 
-## Inference Latency Breakdown
+## RTL structure
 
-End-to-end latency from input submission to output logit reception is **200 clock cycles** at 100 MHz (~2 µs):
+```text
+rtl/
+├── params_pkg.sv          Shared parameters and types
+├── pe.sv                  Single weight-stationary processing element
+├── systolic_array.sv      Generated N×N PE grid and input staggering
+├── controller.sv          Inference FSM and layer sequencing
+├── axi_lite_slave.sv      AXI4-Lite control / weight interface
+├── axis_input_slave.sv    AXI4-Stream activation input
+├── axis_output_master.sv  AXI4-Stream output interface
+├── bram_wrapper.sv        Memory wrapper used by the current RTL
+└── ml_accel_top.sv        Top-level integration
+```
 
-| Phase                         | Cycles  |
-|-------------------------------|---------|
-| AXI-Lite start handshake      | 2       |
-| AXI-Stream input capture      | 1       |
-| IDLE (FSM initialisation)     | 1       |
-| Layer 1 GEMM (4 tiles × 24)   | 96      |
-| ReLU                          | 1       |
-| Layer 2 GEMM (4 tiles × 24)   | 96      |
-| DONE state                    | 1       |
-| AXI-Stream output (3 logits)  | 3       |
-| **Total**                     | **200** |
+## Control and latency
 
----
+The controller sequences loading, GEMM execution, hidden-layer processing, the second GEMM, and output completion. The testbench also records phase-level cycle counts so that compute and interface overhead can be distinguished.
+
+The current clock target is 100 MHz. Exact end-to-end latency should be reported from the final cycle-accurate simulation evidence rather than copied as an architectural constant.
 
 ## Verification
 
-Simulation is performed using **Questa Intel FPGA Starter Edition 2024.3** with **UVM-1.2**.
+The repository uses a cycle-accurate SystemVerilog verification environment with directed/randomized stimulus, protocol transactions, internal state monitoring, cycle accounting, and a hardware-side expected-result comparison.
 
-### Test Suite
+I am deliberately **not calling this a UVM environment** in the current documentation. A future expansion can introduce a conventional UVM agent/driver/monitor/sequencer/scoreboard architecture, but that is not presented as completed work here.
 
-| Test Class                    | Description                                   | Status   |
-|-------------------------------|-----------------------------------------------|----------|
-| `ml_accel_multi_test`         | 3 directed vectors, one per output class      | Pass     |
-| `ml_accel_random_test`        | 10 random int8 input vectors                  | Pass     |
-| `ml_accel_edge_test`          | Boundary values (0x00, 0x7F, 0x80, 0xFF)      | Planned  |
-| `ml_accel_stress_test`        | 100+ back-to-back inferences                  | Planned  |
-| `ml_accel_reset_test`         | Mid-inference reset assertion                 | Planned  |
-| `ml_accel_weight_reload_test` | Weight reload between consecutive inferences  | Planned  |
-| `ml_accel_backpressure_test`  | AXI-Stream output back-pressure stall         | Planned  |
-| `ml_accel_input_stall_test`   | AXI-Stream input stall mid-transfer           | Planned  |
-| `ml_accel_protocol_test`      | AXI handshake protocol corner cases           | Planned  |
-| `ml_accel_repeat_test`        | Repeated identical input vector               | Planned  |
+See [`docs/verification.md`](docs/verification.md).
 
-### Coverage Goals
+## Design tradeoffs
 
-| Covergroup                 | Target                       |
-|----------------------------|------------------------------|
-| Input feature bins (int8)  | All 8 bins exercised          |
-| Output argmax distribution | All 3 classes observed        |
-| FSM state transitions      | 100%                          |
-| AXI handshake conditions   | All valid/ready combinations  |
-| **Overall functional**     | **85–95%**                   |
+### Why weight-stationary?
 
----
+Keeping weights in PE-local registers exposes a simple reuse pattern while activations and partial sums move through the array. For the compact dense workload, this keeps the dataflow straightforward and reduces repeated weight movement through the compute fabric.
 
-## Getting Started
+### Why INT8 operands and INT32 accumulation?
 
-### Dependencies
+INT8 operands reduce storage and arithmetic width, while INT32 accumulation provides substantially more headroom for chained products. The choice therefore balances datapath cost against numerical range.
 
-```bash
-pip install torch scikit-learn numpy
-```
+### Why registers at the current scale?
 
-### Training and Weight Export
+The demonstration workload is small enough that a register-based weight store avoids introducing a larger memory subsystem. This is a workload-specific engineering tradeoff, not a claim that registers are the preferred storage for larger accelerators.
 
-```bash
-cd python_train_and_inference/
-python iris_training.py
-```
+### Why parameterize the array?
 
-The script loads the Iris dataset, applies StandardScaler with ×20 feature scaling to int8, trains a 4→16→3 MLP with `bias=False`, quantizes weights via clamp and round, and exports `.mem` files with one int8 value per line.
+A fixed 4×4 design would demonstrate systolic computation; a parameterized design also exposes architectural scaling and allows controlled exploration of PE count, latency, and resource tradeoffs.
 
-### Running Simulation
+See [`docs/design_tradeoffs.md`](docs/design_tradeoffs.md).
 
-```bash
-# From the testbench/ directory
-vlog -sv +incdir+../rtl ../rtl/*.sv tb_top.sv
-vsim -c tb_top -do "run -all; quit"
-```
+## Reproducibility
 
-Questa Intel FPGA Starter Edition is available at no cost with a standard Intel account registration.
+1. Install the Python dependencies.
+2. Run the model training/quantization/export flow.
+3. Generate the model initialization files.
+4. Compile the SystemVerilog RTL and testbench.
+5. Run simulation and compare results with the expected reference behavior.
+6. For FPGA implementation, target the Zynq-7000 XC7Z020 in Vivado.
+7. Preserve the generated timing, utilization, power, and implementation reports alongside the simulation evidence.
 
----
+See [`docs/reproducibility.md`](docs/reproducibility.md).
 
-## Design Decisions
+## Known limitations
 
-| Decision           | Choice                    | Rationale                                          |
-|--------------------|---------------------------|----------------------------------------------------|
-| Dataflow           | Weight-Stationary         | Minimises weight re-loading overhead for small models |
-| Accumulator width  | 32-bit signed             | Prevents overflow across int8×int8 accumulation chains |
-| BRAM usage         | None (register arrays)    | Model footprint under 200 bytes; BRAM unnecessary  |
-| Bias terms         | Omitted                   | Reduces hardware complexity; sufficient accuracy on Iris MLP |
-| ReLU implementation| Inline in FSM S_RELU state| Reduces inter-module wiring at this design scale   |
-| Synthesis tool     | Xilinx Vivado             | Native support for Zynq-7000 target                |
-| Simulation tool    | Questa FSE                | Full UVM-1.2 support; no institutional licence required |
+- The current proof-of-concept workload is a small MLP rather than a large accelerator benchmark.
+- The current memory system is intentionally simple and does not implement a high-throughput external-memory hierarchy.
+- The project does not yet provide a systematic sweep of larger arrays and workloads.
+- Verification is not presented as exhaustive protocol/corner-case coverage.
+- The current quantization flow is a compact demonstration pipeline rather than a complete quantization-aware-training framework.
 
----
+These are deliberate scope boundaries for the present implementation.
 
-## Reference Material
+## Future work
 
-Architecture diagrams, simulation waveforms, and synthesis results are available in the [`screenshots_project/`](screenshots_project/) directory.
+- Automated sweeps over `SA_ROWS`, `SA_COLS`, and precision.
+- Larger GEMM/MLP workloads with throughput/latency benchmarking.
+- BRAM-backed weight storage and buffering.
+- AXI DMA integration.
+- INT4/INT8 mixed-precision studies.
+- Formal assertions for control invariants and AXI protocol behavior.
+- Full constrained-random UVM verification if verification scope is expanded.
+- Quantization-aware training and accuracy/resource tradeoff analysis.
 
----
+See [`docs/future_work.md`](docs/future_work.md).
+
+## Evidence
+
+- Architecture: [`screenshots_project/systolic_array_architecture.jpeg`](screenshots_project/systolic_array_architecture.jpeg)
+- Schematic: [`screenshots_project/schematic.jpeg`](screenshots_project/schematic.jpeg)
+- Simulation: [`screenshots_project/simulation.jpeg`](screenshots_project/simulation.jpeg)
+- Implementation: [`screenshots_project/implementation.jpeg`](screenshots_project/implementation.jpeg)
+- Utilization: [`screenshots_project/utilization_rpt.jpeg`](screenshots_project/utilization_rpt.jpeg)
+- Timing: [`screenshots_project/timing_rpt.jpeg`](screenshots_project/timing_rpt.jpeg)
+- Power: [`screenshots_project/power_rpt.jpeg`](screenshots_project/power_rpt.jpeg)
+
+A complete screenshot index is available in [`docs/media.md`](docs/media.md).
 
 ## References
 
-- Fisher, R.A. (1936). Iris dataset, via `sklearn.datasets`
-- Accellera Systems Initiative. UVM-1.2 Class Reference
-- Xilinx / AMD. Zynq-7000 SoC Technical Reference Manual
-- Avnet. ZedBoard Hardware User Guide
+- Fisher, R. A. (1936), Iris dataset.
+- Accellera Systems Initiative, UVM 1.2 documentation.
+- AMD/Xilinx, Zynq-7000 SoC documentation.
+- Avnet, ZedBoard hardware documentation.
 
 ---
 
-*ECE Third Year — VLSI Design Track*
+**Project focus:** RTL design, FPGA architecture, systolic dataflow, fixed-point arithmetic, hardware/software integration, and verification.
