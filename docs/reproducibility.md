@@ -11,4 +11,4 @@
 
 ## Design target versus measured result
 
-The README uses the term **target** for intended values such as 100 MHz. It uses **measured** only for values actually present in archived implementation reports. This distinction is maintained to avoid presenting assumptions as experimental results.
+**Target** values (such as the 100 MHz clock) describe intended configuration. **Measured** values refer only to numbers actually present in the archived implementation reports, keeping design intent separate from implementation results.
