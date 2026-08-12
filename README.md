@@ -142,7 +142,7 @@ The current clock target is 100 MHz. Exact end-to-end latency should be reported
 
 The repository uses a cycle-accurate SystemVerilog verification environment: a directed test vector exercised through AXI-Lite/AXI-Stream protocol transactions, internal state monitoring, phase-level cycle accounting, and a hardware-side comparison against a golden expected result.
 
-I am deliberately **not calling this a UVM environment** in the current documentation. A future expansion can introduce a conventional UVM agent/driver/monitor/sequencer/scoreboard architecture, but that is not presented as completed work here.
+This is not a UVM environment. A future extension could introduce a conventional UVM agent/driver/monitor/sequencer/scoreboard architecture, but that is future work, not current functionality.
 
 See [`docs/verification.md`](docs/verification.md).
 
