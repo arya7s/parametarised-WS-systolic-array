@@ -1,6 +1,6 @@
 # Verification
 
-The current repository uses a SystemVerilog, cycle-accurate verification environment with a hardware-side reference/golden computation and protocol-level stimulus. The project documentation intentionally does not describe this as UVM.
+The verification environment is a SystemVerilog, cycle-accurate testbench with a hardware-side golden-model comparison and protocol-level stimulus. It is not a UVM environment.
 
 ## Verification scope
 
