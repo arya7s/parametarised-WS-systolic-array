@@ -15,4 +15,4 @@ The original project evidence is retained under `screenshots_project/`.
 | `inference_py.jpeg` | Python inference/reference-model evidence |
 | `uvm_tests.jpeg` | Historical verification evidence retained from project development |
 
-The filenames are preserved in this documentation pass so the original evidence remains traceable. The README links to them by purpose rather than presenting the directory as an undifferentiated screenshot dump.
+Each file is linked from the README by its purpose (architecture, verification, or implementation evidence) rather than left as an undifferentiated screenshot directory.
