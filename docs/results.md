@@ -1,6 +1,6 @@
 # Implementation Results
 
-This page separates **target/configuration** values from **measured/reported** values. All numbers below are taken directly from the archived Vivado reports in [`screenshots_project/`](../screenshots_project/) or from the cycle-accurate RTL simulation log. None are estimated, inferred, or fabricated.
+Target/configuration values are listed separately from measured/reported values. All numbers below are taken directly from the archived Vivado reports in [`screenshots_project/`](../screenshots_project/) or from the cycle-accurate RTL simulation log.
 
 ## Target / configuration
 
